@@ -1,4 +1,4 @@
-GLUON_SITE_FEEDS='ffmwu ffda'
+GLUON_SITE_FEEDS='ffmwu ffda community'
 
 PACKAGES_FFMWU_REPO=git://github.com/freifunk-mwu/packages-ffmwu.git
 PACKAGES_FFMWU_BRANCH=master
@@ -7,3 +7,7 @@ PACKAGES_FFMWU_COMMIT=55c2cdbc1001a380735e2e3344a7bd8ef9aa84a3
 PACKAGES_FFDA_REPO=https://github.com/freifunk-darmstadt/ffda-packages.git
 PACKAGES_FFDA_BRANCH=master
 PACKAGES_FFDA_COMMIT=57622c757b0166f0e02ed58acbd7976426be9e87
+
+PACKAGES_COMMUNITY_REPO=https://github.com/freifunkMUC/community-packages.git
+PACKAGES_COMMUNITY_BRANCH=gluon-mesh-vpn-wireguard-vxlan
+PACKAGES_COMMUNITY_COMMIT=94bfd7183f64f311eea72bdd6bc5eaa55769eb2d
