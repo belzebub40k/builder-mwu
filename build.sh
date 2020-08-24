@@ -246,7 +246,7 @@ build() {
 
     make ${EFFECTIVE_MAKEOPTS} \
          GLUON_RELEASE="${RELEASE}" \
-         GLUON_BRANCH="${BUILDBRANCH}" \
+         GLUON_AUTOUPDATER_BRANCH="${BRANCH}" \
          GLUON_TARGET="${TARGET}"
   done
 }
@@ -255,6 +255,8 @@ sign() {
   echo "--- Building Manifest ---"
   make ${MAKEOPTS} \
        GLUON_RELEASE="${RELEASE}" \
+       GLUON_AUTOUPDATER_ENABLED=1 \
+       GLUON_AUTOUPDATER_BRANCH="${BUILDBRANCH}" \
        GLUON_BRANCH="${BRANCH}" \
        manifest
 
