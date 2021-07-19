@@ -33,15 +33,3 @@ msgstr ""
 
 msgid "gluon-config-mode:contact-note"
 msgstr ""
-
-msgid "gluon-web-node-role:role:backbone"
-msgstr ""
-
-msgid "gluon-web-node-role:role:node"
-msgstr ""
-
-msgid "gluon-web-node-role:role:offloader"
-msgstr ""
-
-msgid "gluon-web-node-role:role:test"
-msgstr ""
