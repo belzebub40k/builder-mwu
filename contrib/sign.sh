@@ -13,13 +13,13 @@
 SRV_USER="admin"
 SRV_HOST="griesbrei.freifunk-mwu.de"
 SRV_PORT="23"
-SRV_PATH="/var/www/html/firmware"
+SRV_PATH="/home/admin/firmware"
 
 # Help function used in error messages and -h option
 usage() {
   echo ""
   echo "Downloads, signs and uploads a gluon manifest file."
-  echo "Usage ./sign.sh KEYPATH BRANCH [VERSION]"
+  echo "Usage ./site/contrib/sign.sh KEYPATH BRANCH [VERSION]"
   echo "    KEYPATH     the path to the developers private key"
   echo "    BRANCH      the branch to sign"
   echo "    VERSION     the version to sign (optional)"
@@ -67,7 +67,7 @@ scp \
 
 echo "--- signing manifest ---"
 # Sign the local file
-./gluon/contrib/sign.sh \
+./contrib/sign.sh \
   "${KEYPATH}" \
   "${TMP}"
 

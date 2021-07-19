@@ -10,22 +10,17 @@
 # Exit on failed commands
 set -e -o pipefail
 
-# Get full path to script directory
-SCRIPTPATH="$(dirname "$(readlink -e "$0")" )"
-
 # Default make options
 CORES=$(nproc)
 MAKEOPTS="-j$((CORES+1)) BUILD_LOG=1 V=s"
 
-# Default to build all Gluon targets if parameter -t is not set
+# Overwrite Git Tag for experimental releases
+EXP_TAG="2021.2"
 
-# Gluon directory
-GLUON_DIR="gluon"
+# Release suffix for experimental releases
+SUFFIX=1
 
-# Gluon output base directory
-OUTPUT_DIR="output"
-
-# LEDE cache directory
+# OpenWrt cache directory
 CACHE_DIR="${HOME}/.cache/openwrt"
 
 # Deployment directory
@@ -37,8 +32,8 @@ SIGN_KEY="${HOME}/.ecdsakey"
 # Build targets marked broken
 BROKEN=0
 
-# Error codes
-E_ILLEGAL_ARGS=126
+LOGFILE="build.log"
+LOG_CMD="tee ${LOGFILE}"
 
 # Help function used in error messages and -h option
 usage() {
@@ -47,20 +42,23 @@ usage() {
   echo ""
   echo "-a: Build targets marked as broken (optional)"
   echo "    Applied: ${BROKEN}"
-  echo "-b: Firmware branch name (required: sign deploy)"
+  echo "-b: Firmware branch name (required sign deploy)"
   echo "    Availible: stable testing experimental"
   echo "-c: Build command (required)"
-  echo "    Availible: build clean deploy dirclean"
+  echo "    Available: build clean deploy dirclean"
   echo "               download link sign update"
+  echo "               auto autoc autocc"
   echo "-d: Enable bash debug output (optional)"
   echo "-h: Show this help"
-  echo "-i: Build identifier (optional)"
   echo "    Will be applied to the deployment directory"
   echo "-m: Setting for make options (optional)"
   echo "    Applied: \"${MAKEOPTS}\""
   echo "-p: Priority used for autoupdater (optional)"
   echo "    Default: see site.mk"
-  echo "-r: Release version (required: build sign deploy)"
+  echo "-r: Release version (optional)"
+  echo "    Default: Git tag"
+  echo "-s: Release suffix (optional: only experimental)"
+  echo "    Default: 1"
   echo "-t: Gluon target architectures to build (optional)"
   echo "    Default: all"
 }
@@ -68,11 +66,11 @@ usage() {
 # Evaluate arguments for build script.
 if [[ "${#}" == 0 ]]; then
   usage
-  exit ${E_ILLEGAL_ARGS}
+  exit 1
 fi
 
 # Evaluate arguments for build script.
-while getopts ab:c:dhm:p:i:t:r:s: flag; do
+while getopts ab:c:dhm:p:r:s:t: flag; do
   case ${flag} in
     d)
       set -x
@@ -87,7 +85,7 @@ while getopts ab:c:dhm:p:i:t:r:s: flag; do
       else
         echo "Error: Invalid branch set."
         usage
-        exit ${E_ILLEGAL_ARGS}
+        exit 1
       fi
       ;;
     c)
@@ -100,13 +98,16 @@ while getopts ab:c:dhm:p:i:t:r:s: flag; do
         deploy| \
         clean| \
         dirclean| \
-        targets)
+        targets| \
+        auto| \
+        autoc| \
+        autocc)
           COMMAND="${OPTARG}"
           ;;
         *)
           echo "Error: Invalid build command set."
           usage
-          exit ${E_ILLEGAL_ARGS}
+          exit 1
           ;;
       esac
       ;;
@@ -130,12 +131,16 @@ while getopts ab:c:dhm:p:i:t:r:s: flag; do
     r)
       RELEASE="${OPTARG}"
       ;;
+
+    r)
+      SUFFIX="${OPTARG}"
+      ;;
     a)
       BROKEN=1
       ;;
     *)
       usage
-      exit ${E_ILLEGAL_ARGS}
+      exit 1
       ;;
   esac
 done
@@ -147,7 +152,7 @@ shift $((OPTIND - 1));
 if [[ "${#}" > 0 ]]; then
   echo "Error: To many arguments: ${*}"
   usage
-  exit ${E_ILLEGAL_ARGS}
+  exit 1
 fi
 
 # Set priority
@@ -164,28 +169,28 @@ fi
 if [[ -z "${COMMAND}" ]]; then
   echo "Error: Build command missing."
   usage
-  exit ${E_ILLEGAL_ARGS}
-fi
-
-# Check if $RELEASE is set for commands that need it
-if [[ -z "${RELEASE}" && " update clean dirclean build sign deploy " =~ " ${COMMAND} " ]]; then
-  echo "Error: Release suffix missing."
-  usage
-  exit ${E_ILLEGAL_ARGS}
+  exit 1
 fi
 
 # Check if $BRANCH is set for commands that need it
-if [[ -z "${BRANCH}" && " sign deploy " =~ " ${COMMAND} " ]]; then
+if [[ -z "${BRANCH}" && " sign deploy auto autoc autocc " =~ " ${COMMAND} " ]]; then
   echo "Error: Branch missing."
   usage
-  exit ${E_ILLEGAL_ARGS}
+  exit 1
 fi
 
 # Set branch used for building (autoupdater!)
 if [[ "${BRANCH}" == "experimental" ]]; then
   BUILDBRANCH="experimental"
+  RELEASE="${EXP_TAG}+mwu~exp$(date +%Y%m%d)$(printf %02d ${SUFFIX})"
 else
   BUILDBRANCH="stable"
+  if ! RELEASE="$(git -C site describe --tags --exact-match)" ; then
+    echo 'Error: site is not checked out at a tag.'
+    echo 'Use `git checkout <tagname>` or build as experimental.'
+    exit 1
+  fi
+
 fi
 
 update() {
@@ -196,14 +201,7 @@ update() {
 }
 
 link() {
-  echo "--- Linking directories ---"
-
-  rm -rf "output" || true
-  mkdir -p "${SCRIPTPATH}/${OUTPUT_DIR}/${SITE}"
-  ln --relative --symbolic "${SCRIPTPATH}/${OUTPUT_DIR}" "output"
-
-  rm -rf "site" || true
-  ln --relative --symbolic "${SCRIPTPATH}" "site"
+  echo "--- Linking OpenWrt cache directory ---"
 
   rm -rf "openwrt/dl" || true
   mkdir -p "${CACHE_DIR}" "openwrt"
@@ -216,12 +214,6 @@ download() {
     EFFECTIVE_MAKEOPTS="${MAKEOPTS}"
 
     echo "--- Downloading dependencies for target: ${TARGET} ---"
-
-    # Enable aes128-ctr+umac for fastd in x86 images
-    if [[ " x86-generic x86-geode x86-64 " =~ " ${TARGET} " ]] ; then
-      EFFECTIVE_MAKEOPTS="${EFFECTIVE_MAKEOPTS} CONFIG_FASTD_ENABLE_CIPHER_AES128_CTR=y"
-    fi
-
     make ${EFFECTIVE_MAKEOPTS} \
          GLUON_RELEASE="${RELEASE}" \
          GLUON_TARGET="${TARGET}" \
@@ -238,12 +230,6 @@ build() {
     EFFECTIVE_MAKEOPTS="${MAKEOPTS}"
 
     echo "--- Building Gluon Images for target: ${TARGET} ---"
-
-    # Enable aes128-ctr+umac for fastd in x86 images
-    if [[ " x86-generic x86-geode x86-64 " =~ " ${TARGET} " ]] ; then
-      EFFECTIVE_MAKEOPTS="${EFFECTIVE_MAKEOPTS} CONFIG_FASTD_ENABLE_CIPHER_AES128_CTR=y"
-    fi
-
     make ${EFFECTIVE_MAKEOPTS} \
          GLUON_RELEASE="${RELEASE}" \
          GLUON_AUTOUPDATER_ENABLED=1 \
@@ -288,11 +274,11 @@ deploy() {
 
   # Copy images and modules to DEPLOYMENT_DIR
   CP_CMD="cp --verbose --recursive --no-dereference"
-  $CP_CMD "output/debug"                 "${TARGET}/debug"
-  $CP_CMD "output/images/factory"         "${TARGET}/factory"
-  $CP_CMD "output/images/sysupgrade"      "${TARGET}/sysupgrade"
-  $CP_CMD "output/images/other"           "${TARGET}/other"
-  $CP_CMD "output/packages/"*"${RELEASE}" "${TARGET}/packages"
+  $CP_CMD "output/debug"                "${TARGET}/debug"
+  $CP_CMD "output/images/factory"       "${TARGET}/factory"
+  $CP_CMD "output/images/sysupgrade"    "${TARGET}/sysupgrade"
+  $CP_CMD "output/images/other"         "${TARGET}/other"
+  $CP_CMD "output/packages/*${RELEASE}" "${TARGET}/packages"
 
   # Set branch link to new release
   echo "--- Linking branch ${BRANCH} to $(basename ${TARGET}) ---"
@@ -336,9 +322,21 @@ targets(){
   fi
 }
 
+auto(){
+  update ; download ; build ; sign ; deploy
+}
+
+autoc(){
+  clean ; auto
+}
+
+autocc(){
+  dirclean ; auto
+}
+
 (
-  # Change working directory to gluon tree
-  cd "${GLUON_DIR}"
+  echo "--- Start: $(date +"%Y-%m-%d %H:%M:%S%:z") ---"
+  echo "--- Building Firmware / ${RELEASE} (${BRANCH}) ---"
 
   # Always link directories except link() is called explicitly
   if [[ "${COMMAND}" != "link" ]]; then
@@ -352,4 +350,4 @@ targets(){
 
   # Execute the selected command
   ${COMMAND}
-)
+) 2>&1 | ${LOG_CMD}
