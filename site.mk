@@ -25,7 +25,6 @@ GLUON_FEATURES := \
 	autoupdater \
 	config-mode-domain-select \
 	config-mode-geo-location-osm \
-	config-mode-outdoor \
 	ebtables-filter-multicast \
 	ebtables-filter-ra-dhcp \
 	mesh-batman-adv-15 \
@@ -72,9 +71,9 @@ USB_PACKAGES_STORAGE := \
 	kmod-fs-vfat \
 	kmod-usb-storage \
 	kmod-usb-storage-extras \
+	kmod-usb-storage-uas \
 	kmod-nls-base \
 	kmod-nls-cp1250 \
-	kmod-nls-cp1251 \
 	kmod-nls-cp437 \
 	kmod-nls-cp850 \
 	kmod-nls-cp852 \
@@ -82,15 +81,12 @@ USB_PACKAGES_STORAGE := \
 	kmod-nls-iso8859-13 \
 	kmod-nls-iso8859-15 \
 	kmod-nls-iso8859-2 \
-	kmod-nls-utf8 \
-swap-utils
+	kmod-nls-utf8
 
 # USB Network
 USB_PACKAGES_NET := \
 	kmod-ath9k-htc \
 	kmod-mii \
-	kmod-nls-base \
-	kmod-usb-net \
 	kmod-usb-net-asix \
 	kmod-usb-net-asix-ax88179 \
 	kmod-usb-net-cdc-eem \
